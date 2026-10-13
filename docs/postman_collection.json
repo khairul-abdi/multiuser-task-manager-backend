@@ -1,0 +1,1302 @@
+{
+  "info": {
+    "name": "Multiuser Task Manager Backend - Complete Test Suite",
+    "description": "Complete Postman collection based on Backend_Developer_Test.docx. Run from top to bottom to test auth, CRUD, filter/search/pagination, idempotency, structured error handling, and transactional assign flow.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "assignee_token",
+      "value": ""
+    },
+    {
+      "key": "outsider_token",
+      "value": ""
+    },
+    {
+      "key": "user_email",
+      "value": ""
+    },
+    {
+      "key": "assignee_email",
+      "value": ""
+    },
+    {
+      "key": "outsider_email",
+      "value": ""
+    },
+    {
+      "key": "team_id",
+      "value": "101"
+    },
+    {
+      "key": "other_team_id",
+      "value": "202"
+    },
+    {
+      "key": "task_id",
+      "value": ""
+    },
+    {
+      "key": "assignee_id",
+      "value": ""
+    },
+    {
+      "key": "outsider_id",
+      "value": ""
+    },
+    {
+      "key": "idempotency_key",
+      "value": ""
+    },
+    {
+      "key": "second_idempotency_key",
+      "value": ""
+    },
+    {
+      "key": "created_task_response",
+      "value": ""
+    },
+    {
+      "key": "created_task_id",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "00 Setup",
+      "item": [
+        {
+          "name": "Generate Unique Test Data",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/health"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const suffix = Date.now() + '-' + Math.floor(Math.random() * 100000);",
+                  "pm.collectionVariables.set('suffix', suffix);",
+                  "pm.collectionVariables.set('user_email', `user.${suffix}@example.com`);",
+                  "pm.collectionVariables.set('assignee_email', `assignee.${suffix}@example.com`);",
+                  "pm.collectionVariables.set('outsider_email', `outsider.${suffix}@example.com`);",
+                  "pm.collectionVariables.set('team_id', '101');",
+                  "pm.collectionVariables.set('other_team_id', '202');",
+                  "pm.collectionVariables.set('task_id', '');",
+                  "pm.collectionVariables.set('token', '');",
+                  "pm.collectionVariables.set('assignee_token', '');",
+                  "pm.collectionVariables.set('outsider_token', '');",
+                  "pm.collectionVariables.set('idempotency_key', crypto.randomUUID());",
+                  "pm.collectionVariables.set('second_idempotency_key', crypto.randomUUID());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "pm.test('test data generated', function () { pm.expect(pm.collectionVariables.get('user_email')).to.include('@example.com'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/health"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "pm.test('health ok', function () { pm.expect(pm.response.json().status).to.eql('ok'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Swagger OpenAPI YAML",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/swagger/openapi.yaml"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "pm.test('openapi yaml returned', function () { pm.expect(pm.response.text()).to.include('openapi: 3.0.3'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 Auth - Happy Path",
+      "item": [
+        {
+          "name": "Register Owner User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Owner User\",\n  \"email\": \"{{user_email}}\",\n  \"password\": \"password123\",\n  \"team_id\": \"{{team_id}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('token', json.token);",
+                  "pm.collectionVariables.set('owner_id', json.user.id);",
+                  "pm.test('token and user returned', function () { pm.expect(json.token).to.be.a('string'); pm.expect(json.user.email).to.eql(pm.collectionVariables.get('user_email')); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register Assignee Same Team",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Assignee User\",\n  \"email\": \"{{assignee_email}}\",\n  \"password\": \"password123\",\n  \"team_id\": \"{{team_id}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('assignee_token', json.token);",
+                  "pm.collectionVariables.set('assignee_id', json.user.id);",
+                  "pm.test('assignee same team returned', function () { pm.expect(String(json.user.team_id)).to.eql(pm.collectionVariables.get('team_id')); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register Outsider Different Team",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Outsider User\",\n  \"email\": \"{{outsider_email}}\",\n  \"password\": \"password123\",\n  \"team_id\": \"{{other_team_id}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('outsider_token', json.token);",
+                  "pm.collectionVariables.set('outsider_id', json.user.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login Owner User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{user_email}}\",\n  \"password\": \"password123\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('token', json.token);",
+                  "pm.test('login token returned', function () { pm.expect(json.token).to.be.a('string'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 Auth - Error Handling",
+      "item": [
+        {
+          "name": "Register Validation Error",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Invalid\",\n  \"email\": \"not-an-email\",\n  \"password\": \"short\",\n  \"team_id\": 1\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', function () { pm.expect([400]).to.include(pm.response.code); });",
+                  "pm.test('error response has standard fields', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('status');",
+                  "  pm.expect(json).to.have.property('code');",
+                  "  pm.expect(json).to.have.property('message');",
+                  "  pm.expect(json).to.have.property('timestamp');",
+                  "});",
+                  "pm.test('error code is VALIDATION_ERROR', function () { pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register Duplicate Email",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Owner User\",\n  \"email\": \"{{user_email}}\",\n  \"password\": \"password123\",\n  \"team_id\": \"{{team_id}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 409', function () { pm.expect([409]).to.include(pm.response.code); });",
+                  "pm.test('error response has standard fields', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('status');",
+                  "  pm.expect(json).to.have.property('code');",
+                  "  pm.expect(json).to.have.property('message');",
+                  "  pm.expect(json).to.have.property('timestamp');",
+                  "});",
+                  "pm.test('error code is EMAIL_ALREADY_EXISTS', function () { pm.expect(pm.response.json().code).to.eql('EMAIL_ALREADY_EXISTS'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login Invalid Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{user_email}}\",\n  \"password\": \"wrongpassword\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 401', function () { pm.expect([401]).to.include(pm.response.code); });",
+                  "pm.test('error response has standard fields', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('status');",
+                  "  pm.expect(json).to.have.property('code');",
+                  "  pm.expect(json).to.have.property('message');",
+                  "  pm.expect(json).to.have.property('timestamp');",
+                  "});",
+                  "pm.test('error code is INVALID_CREDENTIALS', function () { pm.expect(pm.response.json().code).to.eql('INVALID_CREDENTIALS'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 Tasks - Idempotency",
+      "item": [
+        {
+          "name": "Create Task Missing Idempotency-Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/tasks",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Missing idempotency key\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', function () { pm.expect([400]).to.include(pm.response.code); });",
+                  "pm.test('error response has standard fields', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('status');",
+                  "  pm.expect(json).to.have.property('code');",
+                  "  pm.expect(json).to.have.property('message');",
+                  "  pm.expect(json).to.have.property('timestamp');",
+                  "});",
+                  "pm.test('error code is IDEMPOTENCY_KEY_REQUIRED', function () { pm.expect(pm.response.json().code).to.eql('IDEMPOTENCY_KEY_REQUIRED'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Task Invalid Idempotency-Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "not-a-uuid"
+              }
+            ],
+            "url": "{{base_url}}/tasks",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Invalid idempotency key\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', function () { pm.expect([400]).to.include(pm.response.code); });",
+                  "pm.test('error response has standard fields', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('status');",
+                  "  pm.expect(json).to.have.property('code');",
+                  "  pm.expect(json).to.have.property('message');",
+                  "  pm.expect(json).to.have.property('timestamp');",
+                  "});",
+                  "pm.test('error code is INVALID_IDEMPOTENCY_KEY', function () { pm.expect(pm.response.json().code).to.eql('INVALID_IDEMPOTENCY_KEY'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Task First Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotency_key}}"
+              }
+            ],
+            "url": "{{base_url}}/tasks",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Build API\",\n  \"description\": \"Implement task manager backend\",\n  \"status\": \"todo\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "const raw = pm.response.text();",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('created_task_response', raw);",
+                  "pm.collectionVariables.set('created_task_id', json.data.id);",
+                  "pm.collectionVariables.set('task_id', json.data.id);",
+                  "pm.test('task created', function () { pm.expect(json.data.title).to.eql('Build API'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Task Replay Same Key Same Body",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotency_key}}"
+              }
+            ],
+            "url": "{{base_url}}/tasks",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Build API\",\n  \"description\": \"Implement task manager backend\",\n  \"status\": \"todo\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "pm.test('response body identical to first request', function () { pm.expect(pm.response.text()).to.eql(pm.collectionVariables.get('created_task_response')); });",
+                  "pm.test('same task id replayed', function () { pm.expect(String(pm.response.json().data.id)).to.eql(String(pm.collectionVariables.get('created_task_id'))); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Task Same Key Different Body Conflict",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotency_key}}"
+              }
+            ],
+            "url": "{{base_url}}/tasks",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Different body\",\n  \"description\": \"Should conflict\",\n  \"status\": \"todo\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 409', function () { pm.expect([409]).to.include(pm.response.code); });",
+                  "pm.test('error response has standard fields', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('status');",
+                  "  pm.expect(json).to.have.property('code');",
+                  "  pm.expect(json).to.have.property('message');",
+                  "  pm.expect(json).to.have.property('timestamp');",
+                  "});",
+                  "pm.test('error code is IDEMPOTENCY_KEY_REUSED', function () { pm.expect(pm.response.json().code).to.eql('IDEMPOTENCY_KEY_REUSED'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Second Task New Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{second_idempotency_key}}"
+              }
+            ],
+            "url": "{{base_url}}/tasks",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Searchable API Task\",\n  \"description\": \"Used for search and pagination\",\n  \"status\": \"done\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', function () { pm.expect([201]).to.include(pm.response.code); });",
+                  "pm.test('second task created', function () { pm.expect(pm.response.json().data.status).to.eql('done'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 Tasks - CRUD Query Handling",
+      "item": [
+        {
+          "name": "List Tasks Default",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/tasks",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "pm.test('list shape valid', function () { const json = pm.response.json(); pm.expect(json.data).to.be.an('array'); pm.expect(json).to.have.property('page'); pm.expect(json).to.have.property('limit'); pm.expect(json).to.have.property('total'); pm.expect(json).to.have.property('total_pages'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Tasks Filter Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/tasks?status=done&page=1&limit=10",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "pm.test('all returned tasks match status when present', function () { pm.response.json().data.forEach(t => pm.expect(t.status).to.eql('done')); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Tasks Search By Title",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/tasks?search=Searchable&page=1&limit=10",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "pm.test('search returns matching title when present', function () { pm.response.json().data.forEach(t => pm.expect(t.title.toLowerCase()).to.include('searchable')); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Tasks Pagination",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/tasks?page=1&limit=1",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "pm.test('limit respected', function () { const json = pm.response.json(); pm.expect(json.limit).to.eql(1); pm.expect(json.data.length).to.be.at.most(1); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Detail Task",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/tasks/{{task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "pm.test('detail id matches', function () { pm.expect(String(pm.response.json().data.id)).to.eql(String(pm.collectionVariables.get('task_id'))); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Task",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/tasks/{{task_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Build API Updated\",\n  \"description\": \"Updated from Postman\",\n  \"status\": \"in_progress\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "pm.test('task updated', function () { const json = pm.response.json(); pm.expect(json.data.title).to.eql('Build API Updated'); pm.expect(json.data.status).to.eql('in_progress'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Detail Invalid Path Param",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/tasks/abc",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', function () { pm.expect([400]).to.include(pm.response.code); });",
+                  "pm.test('error response has standard fields', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('status');",
+                  "  pm.expect(json).to.have.property('code');",
+                  "  pm.expect(json).to.have.property('message');",
+                  "  pm.expect(json).to.have.property('timestamp');",
+                  "});",
+                  "pm.test('error code is INVALID_PATH_PARAM', function () { pm.expect(pm.response.json().code).to.eql('INVALID_PATH_PARAM'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Detail Not Found",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/tasks/99999999",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 404', function () { pm.expect([404]).to.include(pm.response.code); });",
+                  "pm.test('error response has standard fields', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('status');",
+                  "  pm.expect(json).to.have.property('code');",
+                  "  pm.expect(json).to.have.property('message');",
+                  "  pm.expect(json).to.have.property('timestamp');",
+                  "});",
+                  "pm.test('error code is NOT_FOUND', function () { pm.expect(pm.response.json().code).to.eql('NOT_FOUND'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 Tasks - Assign Transaction Flow",
+      "item": [
+        {
+          "name": "Assign Task To Same Team User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/tasks/{{task_id}}/assign",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assignee_id\": \"{{assignee_id}}\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "pm.test('assignee updated', function () { pm.expect(String(pm.response.json().data.assignee_id)).to.eql(String(pm.collectionVariables.get('assignee_id'))); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Assignee Can See Assigned Task",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/tasks/{{task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{assignee_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.expect([200]).to.include(pm.response.code); });",
+                  "pm.test('assigned task visible to assignee', function () { pm.expect(String(pm.response.json().data.id)).to.eql(String(pm.collectionVariables.get('task_id'))); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Assign Task To Different Team User Should Fail",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/tasks/{{task_id}}/assign",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assignee_id\": \"{{outsider_id}}\"\n}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 404', function () { pm.expect([404]).to.include(pm.response.code); });",
+                  "pm.test('error response has standard fields', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('status');",
+                  "  pm.expect(json).to.have.property('code');",
+                  "  pm.expect(json).to.have.property('message');",
+                  "  pm.expect(json).to.have.property('timestamp');",
+                  "});",
+                  "pm.test('error code is NOT_FOUND', function () { pm.expect(pm.response.json().code).to.eql('NOT_FOUND'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Assign Task Missing Body Validation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/tasks/{{task_id}}/assign",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', function () { pm.expect([400]).to.include(pm.response.code); });",
+                  "pm.test('error response has standard fields', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('status');",
+                  "  pm.expect(json).to.have.property('code');",
+                  "  pm.expect(json).to.have.property('message');",
+                  "  pm.expect(json).to.have.property('timestamp');",
+                  "});",
+                  "pm.test('error code is VALIDATION_ERROR', function () { pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06 Authorization and Scope",
+      "item": [
+        {
+          "name": "List Tasks Without Token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/tasks"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 401', function () { pm.expect([401]).to.include(pm.response.code); });",
+                  "pm.test('error response has standard fields', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('status');",
+                  "  pm.expect(json).to.have.property('code');",
+                  "  pm.expect(json).to.have.property('message');",
+                  "  pm.expect(json).to.have.property('timestamp');",
+                  "});",
+                  "pm.test('error code is UNAUTHORIZED', function () { pm.expect(pm.response.json().code).to.eql('UNAUTHORIZED'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Tasks Invalid Token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/tasks",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "invalid.token.value",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 401', function () { pm.expect([401]).to.include(pm.response.code); });",
+                  "pm.test('error response has standard fields', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('status');",
+                  "  pm.expect(json).to.have.property('code');",
+                  "  pm.expect(json).to.have.property('message');",
+                  "  pm.expect(json).to.have.property('timestamp');",
+                  "});",
+                  "pm.test('error code is UNAUTHORIZED', function () { pm.expect(pm.response.json().code).to.eql('UNAUTHORIZED'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Outsider Cannot Access Other Team Task",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/tasks/{{task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{outsider_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 404', function () { pm.expect([404]).to.include(pm.response.code); });",
+                  "pm.test('error response has standard fields', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('status');",
+                  "  pm.expect(json).to.have.property('code');",
+                  "  pm.expect(json).to.have.property('message');",
+                  "  pm.expect(json).to.have.property('timestamp');",
+                  "});",
+                  "pm.test('error code is NOT_FOUND', function () { pm.expect(pm.response.json().code).to.eql('NOT_FOUND'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "07 Cleanup",
+      "item": [
+        {
+          "name": "Delete Task",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/tasks/{{task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 204', function () { pm.expect([204]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deleted Task Should Be Not Found",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/tasks/{{task_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 404', function () { pm.expect([404]).to.include(pm.response.code); });",
+                  "pm.test('error response has standard fields', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('status');",
+                  "  pm.expect(json).to.have.property('code');",
+                  "  pm.expect(json).to.have.property('message');",
+                  "  pm.expect(json).to.have.property('timestamp');",
+                  "});",
+                  "pm.test('error code is NOT_FOUND', function () { pm.expect(pm.response.json().code).to.eql('NOT_FOUND'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

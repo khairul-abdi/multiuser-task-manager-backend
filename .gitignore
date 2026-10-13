@@ -1,0 +1,6 @@
+.env
+*.log
+/tmp
+/bin
+.DS_Store
+Backend_Developer_Test.docx
